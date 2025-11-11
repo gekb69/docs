@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass $${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=$${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks:
+      - super-agent-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "$${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  warp-core:
+    build:
+      context: ../warp-core
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - JWT_SECRET=$${JWT_SECRET}
+      - RUST_LOG=info
+    networks:
+      - super-agent-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  vault-shard-1:
+    build:
+      context: ../sharded-vault
+      dockerfile: Dockerfile
+    command: ["./sharded-vault", "--shard-id", "1", "--threshold", "$${VAULT_THRESHOLD}", "--shards", "$${VAULT_SHARDS}", "--port", "9000"]
+    ports:
+      - "9000:9000"
+    volumes:
+      - vault-shard-1:/app/shards
+    networks:
+      - super-agent-net
+
+  vault-shard-2:
+    build:
+      context: ../sharded-vault
+      dockerfile: Dockerfile
+    command: ["./sharded-vault", "--shard-id", "2", "--threshold", "$${VAULT_THRESHOLD}", "--shards", "$${VAULT_SHARDS}", "--port", "9001"]
+    ports:
+      - "9001:9001"
+    volumes:
+      - vault-shard-2:/app/shards
+    networks:
+      - super-agent-net
+
+  vault-shard-3:
+    build:
+      context: ../sharded-vault
+      dockerfile: Dockerfile
+    command: ["./sharded-vault", "--shard-id", "3", "--threshold", "$${VAULT_THRESHOLD}", "--shards", "$${VAULT_SHARDS}", "--port", "9002"]
+    ports:
+      - "9002:9002"
+    volumes:
+      - vault-shard-3:/app/shards
+    networks:
+      - super-agent-net
+
+  master-agent:
+    build:
+      context: ../master-agent
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - JWT_SECRET=$${JWT_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=$${REDIS_PASSWORD}
+      - ENV=$${ENV:-dev}
+      - PYTHONPATH=/app
+    volumes:
+      - ../logs:/app/logs
+      - ../config:/app/config
+    networks:
+      - super-agent-net
+    depends_on:
+      redis:
+        condition: service_healthy
+      warp-core:
+        condition: service_healthy
+      vault-shard-1:
+        condition: service_started
+      vault-shard-2:
+        condition: service_started
+      vault-shard-3:
+        condition: service_started
+
+  mcp-gateway:
+    build:
+      context: ../mcp-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    environment:
+      - MCP_SECRET_KEY=$${JWT_SECRET}
+    networks:
+      - super-agent-net
+    depends_on:
+      - master-agent
+
+  web-ui:
+    build:
+      context: ../web-ui
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000/api/v1
+      - REACT_APP_WS_URL=ws://localhost:8000/ws
+    networks:
+      - super-agent-net
+    depends_on:
+      - master-agent
+
+volumes:
+  redis-data:
+  vault-shard-1:
+  vault-shard-2:
+  vault-shard-3:
+
+networks:
+  super-agent-net:
+    driver: bridge

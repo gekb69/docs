@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+psutil
+pydantic
+python-jose[cryptography]
+passlib[bcrypt]
+redis
+torch

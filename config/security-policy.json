@@ -1,0 +1,72 @@
+{
+  "user_id": "admin",
+  "protection_level": "paranoid",
+  "resource_allocation": {
+    "ram_gb": 4,
+    "cpu_cores": 4,
+    "memory_limit_mb": 2048,
+    "gpu_memory_gb": 0
+  },
+  "recovery": {
+    "trash_retention_days": 30,
+    "permanent_delete": false,
+    "backup_enabled": true
+  },
+  "acl_rules": {
+    "resource_access": {
+      "cpu": {
+        "max_cores": 4,
+        "require_confirmation": false
+      },
+      "memory": {
+        "max_gb": 8,
+        "require_confirmation": true,
+        "emergency_threshold": 95
+      },
+      "disk": {
+        "require_confirmation": true,
+        "blocked_extensions": [
+          ".exe",
+          ".sh"
+        ],
+        "max_daily_operations": 1000
+      },
+      "network": {
+        "allowed_domains": [
+          "localhost",
+          "api.openai.com"
+        ],
+        "require_confirmation": true
+      }
+    },
+    "file_operations": {
+      "create": {
+        "allowed": true,
+        "require_confirmation": false,
+        "max_daily_operations": 500
+      },
+      "delete": {
+        "allowed": true,
+        "require_confirmation": true,
+        "max_daily_operations": 100
+      },
+      "modify": {
+        "allowed": true,
+        "require_confirmation": false
+      },
+      "read": {
+        "allowed": true,
+        "require_confirmation": false
+      }
+    },
+    "confirmation_methods": {
+      "ui_modal": true,
+      "timeout_seconds": 60
+    }
+  },
+  "alerts": {
+    "email": "",
+    "webhook": "",
+    "enable_sound": true
+  }
+}
